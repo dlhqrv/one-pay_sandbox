@@ -209,6 +209,9 @@ Environment: **MTF test** — `https://mtf.onepay.vn`
 | `vpc_ReturnURL` | Merchant callback URL after payment |
 | `vpc_SecureHash` | HMAC-SHA256 signature |
 
+<img width="644" height="351" alt="image" src="https://github.com/user-attachments/assets/deab6228-e5ad-4490-b8ed-08d9d1203d29" />
+
+
 ## Known Issues
 
 1. **`VerifyVpcSecureHash.js` is empty** — `Main.js` imports `onePayVerifySecureHash` from this file, but it has no implementation. Copy or refactor from `CheckHash.js` to fix `verirySign()`.
