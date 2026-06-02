@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OnePay Sandbox Tester</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue: #185FA5; --blue-light: #E6F1FB; --blue-mid: #378ADD;
+    --green: #3B6D11; --green-light: #EAF3DE; --green-mid: #639922;
+    --red: #A32D2D; --red-light: #FCEBEB; --red-mid: #E24B4A;
+    --amber: #854F0B; --amber-light: #FAEEDA; --amber-mid: #EF9F27;
+    --gray: #444441; --gray-light: #F1EFE8; --gray-mid: #888780;
+    --border: #d4d2c9; --bg: #fafaf8; --surface: #ffffff;
+    --text: #1a1a18; --text2: #5F5E5A; --text3: #888780;
+    --radius: 10px; --radius-sm: 6px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; }
+  /* Layout */
+  .app { display: grid; grid-template-rows: 56px 1fr; min-height: 100vh; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; gap: 12px; position: sticky; top: 0; z-index: 100; }
+  header h1 { font-size: 16px; font-weight: 600; }
+  .env-badge { font-size: 11px; background: var(--amber-light); color: var(--amber); padding: 3px 10px; border-radius: 99px; font-weight: 600; border: 1px solid var(--amber-mid); }
+  .main { display: grid; grid-template-columns: 220px 1fr; height: calc(100vh - 56px); }
+  /* Sidebar */
+  .sidebar { border-right: 1px solid var(--border); background: var(--surface); padding: 16px 0; overflow-y: auto; }
+  .sidebar-section { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 16px 4px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px; cursor: pointer; font-size: 13px; color: var(--text2); border-left: 3px solid transparent; transition: all 0.15s; }
+  .nav-item:hover { background: var(--gray-light); color: var(--text); }
+  .nav-item.active { background: var(--blue-light); color: var(--blue); border-left-color: var(--blue); font-weight: 500; }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+  /* Content */
+  .content { overflow-y: auto; padding: 24px; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-title { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .page-desc { color: var(--text2); font-size: 13px; margin-bottom: 24px; }
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  /* Grid */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  /* Form */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 5px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 8px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 13px; font-family: inherit; background: var(--bg); color: var(--text);
+    transition: border-color 0.15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--blue-mid); box-shadow: 0 0 0 3px rgba(24,95,165,0.1); }
+  .field textarea { resize: vertical; min-height: 80px; }
+  /* Buttons */
+  .btn { padding: 9px 18px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+  .btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .btn-primary:hover { background: #0C447C; }
+  .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
+  .btn-secondary:hover { background: var(--gray-light); }
+  .btn-danger { background: var(--red-light); color: var(--red); border-color: var(--red-mid); }
+  .btn-success { background: var(--green-light); color: var(--green); border-color: var(--green-mid); }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* Code / mono */
+  .mono { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 12px; }
+  .code-block { background: #1e1e1e; color: #d4d4d4; border-radius: var(--radius-sm); padding: 14px 16px; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; line-height: 1.7; }
+  .code-block.light { background: var(--gray-light); color: var(--text); border: 1px solid var(--border); }
+  /* Badges */
+  .badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+  .badge-blue { background: var(--blue-light); color: var(--blue); }
+  .badge-green { background: var(--green-light); color: var(--green); }
+  .badge-red { background: var(--red-light); color: var(--red); }
+  .badge-amber { background: var(--amber-light); color: var(--amber); }
+  .badge-gray { background: var(--gray-light); color: var(--gray); }
+  /* Alert */
+  .alert { padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 16px; display: flex; align-items: flex-start; gap: 10px; }
+  .alert-info { background: var(--blue-light); color: var(--blue); border: 1px solid #b5d4f4; }
+  .alert-success { background: var(--green-light); color: var(--green); border: 1px solid #c0dd97; }
+  .alert-danger { background: var(--red-light); color: var(--red); border: 1px solid #f7c1c1; }
+  .alert-amber { background: var(--amber-light); color: var(--amber); border: 1px solid #fac775; }
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg); }
+  /* Divider */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  /* Step */
+  .step { display: flex; gap: 12px; margin-bottom: 14px; }
+  .step-num { width: 26px; height: 26px; border-radius: 50%; background: var(--blue-light); color: var(--blue); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-body { flex: 1; }
+  .step-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .step-desc { font-size: 12px; color: var(--text2); }
+  /* Result display */
+  #resultAlert { display: none; }
+  .param-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .param-row:last-child { border-bottom: none; }
+  .param-key { font-family: 'SFMono-Regular', Consolas, monospace; color: var(--blue); font-size: 12px; }
+  .param-val { color: var(--text2); font-size: 12px; text-align: right; max-width: 60%; word-break: break-all; }
+  /* Test cases */
+  .tc-item { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .tc-item:last-child { border-bottom: none; }
+  .tc-check { width: 22px; height: 22px; border-radius: 5px; border: 1.5px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; font-size: 13px; }
+  .tc-check.pass { background: var(--green-light); border-color: var(--green-mid); color: var(--green); }
+  .tc-check.fail { background: var(--red-light); border-color: var(--red-mid); color: var(--red); }
+  .tc-id { font-family: monospace; font-size: 11px; color: var(--text3); min-width: 56px; margin-top: 3px; }
+  .tc-body { flex: 1; }
+  .tc-title { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+  .tc-meta { font-size: 12px; color: var(--text2); }
+  .tc-expected { font-size: 11px; background: var(--gray-light); border-radius: 4px; padding: 3px 8px; margin-top: 5px; display: inline-block; color: var(--text2); }
+  .tc-actions { display: flex; gap: 6px; margin-top: 6px; }
+  /* Responsive */
+  @media (max-width: 700px) {
+    .main { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+  /* Copy button */
+  .copy-wrap { position: relative; }
+  .copy-btn { position: absolute; top: 8px; right: 8px; font-size: 11px; padding: 3px 9px; cursor: pointer; background: rgba(255,255,255,0.1); color: #d4d4d4; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; }
+  .copy-btn:hover { background: rgba(255,255,255,0.2); }
+  /* IPN log */
+  .log-entry { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 10px; }
+  .log-entry.success { border-left: 3px solid var(--green-mid); }
+  .log-entry.failed { border-left: 3px solid var(--red-mid); }
+  .log-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .empty-state { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- Header -->
+<header>
+  <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="7" fill="#185FA5"/><path d="M7 14h14M14 7v14" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>
+  <h1>OnePay Sandbox Tester</h1>
+  <span class="env-badge">MTF / Sandbox</span>
+  <div style="margin-left:auto; font-size:12px; color:var(--text3);">http://localhost:3000</div>
+</header>
+
+<div class="main">
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-section">Payment</div>
+  <div class="nav-item active" onclick="showPage('build')">
+    <span class="nav-icon">🔗</span> Build URL
+  </div>
+  <div class="nav-item" onclick="showPage('verify')">
+    <span class="nav-icon">🔐</span> Verify Hash
+  </div>
+  <div class="nav-item" onclick="showPage('querydr')">
+    <span class="nav-icon">🔍</span> QueryDR API
+  </div>
+  <div class="nav-item" onclick="showPage('ipn')">
+    <span class="nav-icon">📡</span> IPN Log
+  </div>
+  <div class="sidebar-section" style="margin-top:8px;">Reference</div>
+  <div class="nav-item" onclick="showPage('testcards')">
+    <span class="nav-icon">💳</span> Test Cards
+  </div>
+  <div class="nav-item" onclick="showPage('testcases')">
+    <span class="nav-icon">✅</span> Test Cases
+  </div>
+  <div class="nav-item" onclick="showPage('codes')">
+    <span class="nav-icon">📋</span> Response Codes
+  </div>
+</nav>
+
+<!-- Content -->
+<div class="content">
+
+  <!-- ── PAGE: Build Payment URL ── -->
+  <div id="page-build" class="page active">
+    <div class="page-title">Build Payment URL</div>
+    <div class="page-desc">Fill in the form — the server generates the SecureHash and payment URL for you.</div>
+
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <div class="card-title">⚙️ Payment type</div>
+          <div class="field">
+            <label>Payment type</label>
+            <select id="paymentType" onchange="applyPreset()">
+              <option value="paynow">Pay Now (standard)</option>
+              <option value="installment">Installment (trả góp)</option>
+              <option value="promotion">Promotion</option>
+              <option value="token">Card Tokenization</option>
+            </select>
+          </div>
+          <div style="background:var(--blue-light); border-radius:var(--radius-sm); padding:10px 12px; font-size:12px; font-family:monospace;">
+            <div style="color:var(--text3); margin-bottom:4px;">Active credentials</div>
+            <div>Merchant: <strong id="disp-mid">TESTMERCHANT</strong></div>
+            <div>AccessCode: <strong id="disp-ac">6BEB2546</strong></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">📝 Transaction details</div>
+          <div class="grid-2">
+            <div class="field">
+              <label>Amount (VND) — no ×100 needed</label>
+              <input type="number" id="amount" value="100000" placeholder="e.g. 100000" />
+            </div>
+            <div class="field">
+              <label>vpc_MerchTxnRef <span class="badge badge-blue" style="font-size:9px;">unique</span></label>
+              <div style="display:flex; gap:6px;">
+                <input type="text" id="txnRef" style="flex:1;" />
+                <button class="btn btn-secondary btn-sm" onclick="genRef()">↻</button>
+              </div>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label>vpc_OrderInfo</label>
+              <input type="text" id="orderInfo" value="TestOrder001" />
+            </div>
+            <div class="field">
+              <label>vpc_Currency</label>
+              <select id="currency">
+                <option value="VND">VND</option>
+                <option value="USD">USD</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>vpc_ReturnURL</label>
+            <input type="text" id="returnUrl" value="http://localhost:3000/return" />
+          </div>
+          <div class="field">
+            <label>vpc_CallbackURL (IPN) — optional</label>
+            <input type="text" id="callbackUrl" value="http://localhost:3000/ipn" />
+          </div>
+          <div class="grid-3">
+            <div class="field">
+              <label>Locale</label>
+              <select id="locale">
+                <option value="en">English</option>
+                <option value="vn">Vietnamese</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>vpc_TicketNo (IP)</label>
+              <input type="text" id="ticketNo" value="127.0.0.1" />
+            </div>
+            <div class="field">
+              <label>vpc_CardList (optional)</label>
+              <select id="cardList">
+                <option value="">All methods</option>
+                <option value="INTERNATIONAL">INTERNATIONAL</option>
+                <option value="INTERCARD">INTERCARD</option>
+                <option value="DOMESTIC">DOMESTIC</option>
+                <option value="VIETQR">VIETQR</option>
+                <option value="INTERCARD,DOMESTIC,QR">INT + DOM + QR</option>
+              </select>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-primary" onclick="buildUrl()">Generate payment URL</button>
+            <button class="btn btn-secondary" onclick="clearBuild()">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div id="resultAlert" class="alert" style="display:none;"></div>
+        <div id="buildResult" style="display:none;">
+          <div class="card">
+            <div class="card-title">🔗 Payment URL</div>
+            <div class="copy-wrap">
+              <div class="code-block" id="paymentUrlDisplay"></div>
+              <button class="copy-btn" onclick="copyText('paymentUrlDisplay')">Copy</button>
+            </div>
+            <div class="btn-group" style="margin-top:10px;">
+              <button class="btn btn-primary btn-sm" onclick="openPayment()">Open in browser →</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">🔐 SecureHash details</div>
+            <div class="field"><label>RawData (sorted, before hashing)</label>
+              <div class="copy-wrap">
+                <div class="code-block" id="rawDataDisplay" style="font-size:11px; max-height:120px; overflow-y:auto;"></div>
+                <button class="copy-btn" onclick="copyText('rawDataDisplay')">Copy</button>
+              </div>
+            </div>
+            <div class="field"><label>vpc_SecureHash (HMAC-SHA256 uppercase)</label>
+              <div class="code-block" style="color:#4ec9b0;" id="hashDisplay"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">📦 All parameters sent</div>
+            <div id="paramsDisplay"></div>
+          </div>
+        </div>
+        <div id="buildPlaceholder" class="card" style="text-align:center; padding:40px; color:var(--text3);">
+          <div style="font-size:32px; margin-bottom:12px;">🔗</div>
+          <div>Fill in the form and click<br><strong>Generate payment URL</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: Verify Hash ── -->
+  <div id="page-verify" class="page">
+    <div class="page-title">Verify SecureHash</div>
+    <div class="page-desc">Paste the parameters returned by OnePay (ReturnURL) to verify the signature and check transaction status.</div>
+
+    <div class="alert alert-info">
+      ℹ️ After a test payment, OnePay redirects to your ReturnURL with all params in the query string. Paste the full URL or the params JSON here to validate.
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">📥 Input</div>
+        <div class="field">
+          <label>Payment type (to select HashCode)</label>
+          <select id="v-paymentType">
+            <option value="paynow">Pay Now</option>
+            <option value="installment">Installment</option>
+            <option value="promotion">Promotion</option>
+            <option value="token">Card Token</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Paste full ReturnURL or params as JSON</label>
+          <textarea id="v-input" rows="8" placeholder='Paste full URL like:
+http://localhost:3000/return?vpc_Amount=10000000&vpc_TxnResponseCode=0&vpc_SecureHash=...
+
+Or paste JSON:
+{"vpc_Amount":"10000000","vpc_TxnResponseCode":"0","vpc_SecureHash":"..."}'></textarea>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" onclick="verifyHash()">Verify signature</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('v-input').value=''">Clear</button>
+        </div>
+      </div>
+      <div>
+        <div id="v-result" class="card" style="display:none;">
+          <div class="card-title">🔍 Verification result</div>
+          <div id="v-status-alert" class="alert"></div>
+          <div id="v-details"></div>
+        </div>
+        <div id="v-placeholder" class="card" style="text-align:center; padding:40px; color:var(--text3);">
+          <div style="font-size:32px; margin-bottom:12px;">🔐</div>
+          <div>Paste the ReturnURL params<br>and click Verify</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: QueryDR ── -->
+  <div id="page-querydr" class="page">
+    <div class="page-title">QueryDR API</div>
+    <div class="page-desc">Use this to check transaction status when ReturnURL or IPN is not received within 15–30 minutes.</div>
+
+    <div class="alert alert-amber">
+      ⚠️ The QueryDR endpoint requires a real server call to OnePay. This page generates the signed request for you — use the curl command or send from your backend.
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">📋 Query parameters</div>
+        <div class="field">
+          <label>Payment type</label>
+          <select id="q-paymentType">
+            <option value="paynow">Pay Now</option>
+            <option value="installment">Installment</option>
+            <option value="promotion">Promotion</option>
+            <option value="token">Card Token</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>vpc_MerchTxnRef to query</label>
+          <input type="text" id="q-txnRef" placeholder="e.g. TEST_1234567890" />
+        </div>
+        <button class="btn btn-primary" onclick="buildQueryDR()">Generate QueryDR request</button>
+      </div>
+      <div>
+        <div id="q-result" class="card" style="display:none;">
+          <div class="card-title">📡 QueryDR request</div>
+          <div class="field"><label>Endpoint</label>
+            <div class="code-block light" id="q-endpoint"></div>
+          </div>
+          <div class="field"><label>Curl command (run in terminal)</label>
+            <div class="copy-wrap">
+              <div class="code-block" id="q-curl" style="max-height:200px; overflow-y:auto; font-size:11px;"></div>
+              <button class="copy-btn" onclick="copyText('q-curl')">Copy</button>
+            </div>
+          </div>
+          <div class="field"><label>Response codes to watch</label>
+            <table>
+              <tr><td><span class="badge badge-green">0</span></td><td>Payment successful</td></tr>
+              <tr><td><span class="badge badge-red">≠0</span></td><td>Payment failed</td></tr>
+              <tr><td><span class="badge badge-amber">100</span></td><td>In progress — keep polling</td></tr>
+              <tr><td><span class="badge badge-amber">300</span></td><td>Pending — keep polling</td></tr>
+            </table>
+          </div>
+        </div>
+        <div id="q-placeholder" class="card" style="text-align:center; padding:40px; color:var(--text3);">
+          <div style="font-size:32px; margin-bottom:12px;">🔍</div>
+          <div>Enter a MerchTxnRef and<br>click Generate QueryDR</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: IPN Log ── -->
+  <div id="page-ipn" class="page">
+    <div class="page-title">IPN Log</div>
+    <div class="page-desc">
+      All IPN callbacks received at <code style="background:var(--gray-light); padding:2px 6px; border-radius:4px;">http://localhost:3000/ipn</code> appear here. Set your IPN URL in OnePay or the payment form above.
+    </div>
+    <div class="btn-group" style="margin-bottom:16px;">
+      <button class="btn btn-secondary btn-sm" onclick="loadIpnLog()">↻ Refresh</button>
+      <span style="font-size:12px; color:var(--text3); align-self:center;">Auto-refreshes every 5s</span>
+    </div>
+    <div id="ipn-log-container">
+      <div class="empty-state">No IPN calls received yet.<br>Complete a test payment to see callbacks here.</div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: Test Cards ── -->
+  <div id="page-testcards" class="page">
+    <div class="page-title">Test Cards</div>
+    <div class="page-desc">Use these cards on the OnePay sandbox payment page.</div>
+
+    <div class="card">
+      <div class="card-title">🏧 Domestic ATM — Vietcombank (VCB)</div>
+      <table>
+        <tr><th>Field</th><th>Value</th></tr>
+        <tr><td>Card number</td><td><code class="mono">9704360000000000002</code></td></tr>
+        <tr><td>Card holder</td><td>NGUYEN VAN A</td></tr>
+        <tr><td>Issue date</td><td>01/13</td></tr>
+        <tr><td>OTP</td><td><code class="mono">123456</code></td></tr>
+      </table>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">💳 Visa</div>
+        <table>
+          <tr><th>Field</th><th>Value</th></tr>
+          <tr><td>Card number</td><td><code class="mono">4000000000001091</code></td></tr>
+          <tr><td>Expiry</td><td>05/2028</td></tr>
+          <tr><td>CVV</td><td><code class="mono">123</code></td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">💳 Mastercard</div>
+        <table>
+          <tr><th>Field</th><th>Value</th></tr>
+          <tr><td>Card number</td><td><code class="mono">5123450000000008</code></td></tr>
+          <tr><td>Expiry</td><td>05/2028</td></tr>
+          <tr><td>CVV</td><td><code class="mono">123</code></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📌 Important notes</div>
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Amount × 100 rule</div>
+          <div class="step-desc">100,000 VND → send 10,000,000. This is handled automatically by the server.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">vpc_MerchTxnRef must be unique</div>
+          <div class="step-desc">Use the ↻ button to generate a fresh one for every test payment.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Always verify the SecureHash</div>
+          <div class="step-desc">Even if vpc_TxnResponseCode = 0, the transaction is only valid if the hash matches.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: Test Cases ── -->
+  <div id="page-testcases" class="page">
+    <div class="page-title">Official Test Cases</div>
+    <div class="page-desc">All 28 test cases from the OnePay spec (Part III, Section 8). Mark each as pass or fail.</div>
+
+    <div id="tc-progress" style="margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text2); margin-bottom:4px;">
+        <span id="tc-label">0 / 28 passed</span>
+        <button class="btn btn-secondary btn-sm" onclick="resetTc()">Reset all</button>
+      </div>
+      <div style="background:var(--gray-light); border-radius:99px; height:6px;">
+        <div id="tc-bar" style="background:var(--green-mid); height:6px; border-radius:99px; width:0%; transition:width 0.3s;"></div>
+      </div>
+    </div>
+
+    <div id="tc-list"></div>
+  </div>
+
+  <!-- ── PAGE: Response Codes ── -->
+  <div id="page-codes" class="page">
+    <div class="page-title">Response Codes</div>
+    <div class="page-desc">vpc_TxnResponseCode values returned by OnePay.</div>
+    <div class="card">
+      <table>
+        <tr><th>Code</th><th>Name</th><th>Meaning</th></tr>
+        <tr><td><span class="badge badge-green">0</span></td><td>Approved</td><td>Transaction successful</td></tr>
+        <tr><td><span class="badge badge-red">1</span></td><td>Unspecified Failure</td><td>Bank declined — unspecified</td></tr>
+        <tr><td><span class="badge badge-red">2</span></td><td>Declined</td><td>Card issuer declined</td></tr>
+        <tr><td><span class="badge badge-amber">3</span></td><td>Timed Out</td><td>No response from card issuer</td></tr>
+        <tr><td><span class="badge badge-amber">4</span></td><td>Expired Card</td><td>Invalid expiry or card expired</td></tr>
+        <tr><td><span class="badge badge-red">5</span></td><td>Insufficient Funds</td><td>Not enough balance/limit</td></tr>
+        <tr><td><span class="badge badge-amber">6</span></td><td>Comm Error</td><td>No response from card issuer</td></tr>
+        <tr><td><span class="badge badge-red">7</span></td><td>System Error</td><td>Bank processing error</td></tr>
+        <tr><td><span class="badge badge-red">8</span></td><td>Not Supported</td><td>Card issuer does not support online payment</td></tr>
+        <tr><td><span class="badge badge-red">11</span></td><td>Not Registered</td><td>Card not activated for online payment</td></tr>
+        <tr><td><span class="badge badge-red">14</span></td><td>Invalid Card No</td><td>Invalid card number</td></tr>
+        <tr><td><span class="badge badge-red">25</span></td><td>Invalid OTP</td><td>OTP incorrect</td></tr>
+        <tr><td><span class="badge badge-amber">26</span></td><td>Expired OTP</td><td>OTP has expired</td></tr>
+        <tr><td><span class="badge badge-gray">99</span></td><td>User Cancel</td><td>User cancelled the transaction</td></tr>
+        <tr><td><span class="badge badge-red">F</span></td><td>3D Secure Failure</td><td>Authentication not successful</td></tr>
+        <tr><td><span class="badge badge-amber">253</span></td><td>Expired Session</td><td>Payment session timed out</td></tr>
+        <tr><td><span class="badge badge-amber">300</span></td><td>Pending (QueryDR)</td><td>Transaction pending — keep polling</td></tr>
+        <tr><td><span class="badge badge-amber">100</span></td><td>In Progress (QueryDR)</td><td>Not yet completed — keep polling</td></tr>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ── Navigation ─────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'ipn') loadIpnLog();
+}
+
+// ── Preset credentials ─────────────────────────────────────────────
+const CREDS = {
+  paynow:      { mid: 'TESTMERCHANT', ac: '6BEB2546' },
+  installment: { mid: 'TESTTRAGOP',   ac: 'D51C5CD6' },
+  promotion:   { mid: 'TESTPR',       ac: '6BEB0511' },
+  token:       { mid: 'TESTTOKENOP',  ac: '6BEB2546' },
+};
+
+function applyPreset() {
+  const c = CREDS[document.getElementById('paymentType').value];
+  document.getElementById('disp-mid').textContent = c.mid;
+  document.getElementById('disp-ac').textContent = c.ac;
+}
+
+async function genRef() {
+  const r = await fetch('/api/gen-txnref').then(x => x.json());
+  document.getElementById('txnRef').value = r.ref;
+}
+
+// Init txnRef
+genRef();
+
+// ── Build Payment URL ──────────────────────────────────────────────
+let currentPaymentUrl = '';
+
+async function buildUrl() {
+  const body = {
+    paymentType: document.getElementById('paymentType').value,
+    amount: document.getElementById('amount').value,
+    orderInfo: document.getElementById('orderInfo').value,
+    merchTxnRef: document.getElementById('txnRef').value,
+    returnUrl: document.getElementById('returnUrl').value,
+    callbackUrl: document.getElementById('callbackUrl').value,
+    locale: document.getElementById('locale').value,
+    currency: document.getElementById('currency').value,
+    ticketNo: document.getElementById('ticketNo').value,
+    cardList: document.getElementById('cardList').value,
+  };
+
+  try {
+    const res = await fetch('/api/build-payment-url', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showAlert('resultAlert', 'danger', '❌ ' + data.error);
+      return;
+    }
+
+    currentPaymentUrl = data.paymentUrl;
+    document.getElementById('paymentUrlDisplay').textContent = data.paymentUrl;
+    document.getElementById('rawDataDisplay').textContent = data.rawData;
+    document.getElementById('hashDisplay').textContent = data.secureHash;
+
+    const pd = document.getElementById('paramsDisplay');
+    pd.innerHTML = Object.entries(data.params).map(([k, v]) =>
+      `<div class="param-row"><span class="param-key">${k}</span><span class="param-val">${v}</span></div>`
+    ).join('');
+
+    document.getElementById('buildResult').style.display = 'block';
+    document.getElementById('buildPlaceholder').style.display = 'none';
+    document.getElementById('resultAlert').style.display = 'none';
+  } catch (e) {
+    showAlert('resultAlert', 'danger', '❌ Request failed: ' + e.message);
+  }
+}
+
+function openPayment() {
+  if (currentPaymentUrl) window.open(currentPaymentUrl, '_blank');
+}
+
+function clearBuild() {
+  document.getElementById('buildResult').style.display = 'none';
+  document.getElementById('buildPlaceholder').style.display = 'block';
+  document.getElementById('resultAlert').style.display = 'none';
+  genRef();
+}
+
+// ── Verify Hash ────────────────────────────────────────────────────
+async function verifyHash() {
+  let raw = document.getElementById('v-input').value.trim();
+  let params = {};
+
+  try {
+    if (raw.startsWith('{')) {
+      params = JSON.parse(raw);
+    } else {
+      // Try parsing as URL
+      const urlPart = raw.includes('?') ? raw.split('?')[1] : raw;
+      new URLSearchParams(urlPart).forEach((v, k) => { params[k] = v; });
+    }
+  } catch {
+    alert('Could not parse input. Paste the full ReturnURL or a JSON object.');
+    return;
+  }
+
+  if (!params.vpc_SecureHash) {
+    alert('vpc_SecureHash not found in the input.');
+    return;
+  }
+
+  const res = await fetch('/api/verify-hash', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ params, paymentType: document.getElementById('v-paymentType').value }),
+  });
+  const data = await res.json();
+
+  const statusMap = {
+    success: ['success', '✅ Transaction SUCCESSFUL — hash valid and response code = 0'],
+    failed:  ['danger',  '❌ Transaction FAILED — hash valid but response code ≠ 0 (code: ' + data.responseCode + ')'],
+    pending: ['amber',   '⚠️ Hash MISMATCH — mark as Pending and use QueryDR API to verify actual status'],
+  };
+  const [type, msg] = statusMap[data.status] || ['info', '—'];
+
+  const el = document.getElementById('v-status-alert');
+  el.className = 'alert alert-' + type;
+  el.textContent = msg;
+
+  document.getElementById('v-details').innerHTML = `
+    <div class="param-row"><span class="param-key">Hash match</span><span class="param-val">${data.valid ? '✅ Yes' : '❌ No'}</span></div>
+    <div class="param-row"><span class="param-key">vpc_TxnResponseCode</span><span class="param-val">${data.responseCode}</span></div>
+    <div class="param-row"><span class="param-key">Received hash</span><span class="param-val mono" style="font-size:10px;">${data.receivedHash}</span></div>
+    <div class="param-row"><span class="param-key">Computed hash</span><span class="param-val mono" style="font-size:10px;">${data.computedHash}</span></div>
+  `;
+
+  document.getElementById('v-result').style.display = 'block';
+  document.getElementById('v-placeholder').style.display = 'none';
+}
+
+// ── QueryDR ────────────────────────────────────────────────────────
+async function buildQueryDR() {
+  const txnRef = document.getElementById('q-txnRef').value.trim();
+  if (!txnRef) { alert('Enter a vpc_MerchTxnRef to query.'); return; }
+
+  const res = await fetch('/api/querydr', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ merchTxnRef: txnRef, paymentType: document.getElementById('q-paymentType').value }),
+  });
+  const data = await res.json();
+
+  document.getElementById('q-endpoint').textContent = data.endpoint;
+  document.getElementById('q-curl').textContent = data.curlExample;
+  document.getElementById('q-result').style.display = 'block';
+  document.getElementById('q-placeholder').style.display = 'none';
+}
+
+// ── IPN Log ────────────────────────────────────────────────────────
+async function loadIpnLog() {
+  const res = await fetch('/api/ipn-log');
+  const log = await res.json();
+  const el = document.getElementById('ipn-log-container');
+
+  if (!log.length) {
+    el.innerHTML = '<div class="empty-state">No IPN calls received yet.<br>Complete a test payment to see callbacks here.</div>';
+    return;
+  }
+
+  el.innerHTML = log.map(e => `
+    <div class="log-entry ${e.status}">
+      <div class="log-meta">
+        <span class="badge badge-${e.status === 'success' ? 'green' : 'red'}">${e.status.toUpperCase()}</span>
+        <span class="badge badge-gray mono">${e.params.vpc_MerchTxnRef || '—'}</span>
+        <span style="font-size:11px; color:var(--text3);">${e.timestamp}</span>
+        <span class="badge badge-${e.params.vpc_TxnResponseCode === '0' ? 'green' : 'amber'}">code: ${e.params.vpc_TxnResponseCode || '?'}</span>
+        <span class="badge badge-${e.verification.valid ? 'green' : 'red'}">hash: ${e.verification.valid ? 'valid' : 'invalid'}</span>
+      </div>
+      <div class="code-block light mono" style="font-size:11px; max-height:120px; overflow-y:auto;">${JSON.stringify(e.params, null, 2)}</div>
+    </div>
+  `).join('');
+}
+setInterval(() => {
+  if (document.getElementById('page-ipn').classList.contains('active')) loadIpnLog();
+}, 5000);
+
+// ── Test Cases ─────────────────────────────────────────────────────
+const TC_STATE = {};
+const ALL_TC = [
+  { id:'PR-01', mod:'Payment Request', title:'Successful redirect to OnePay', pre:'Valid config', expected:'Redirected to OnePay page', critical:true },
+  { id:'PR-02', mod:'Payment Request', title:'Missing vpc_Merchant param', pre:'Remove vpc_Merchant', expected:'OnePay returns parameter error' },
+  { id:'PR-03', mod:'Payment Request', title:'Invalid vpc_AccessCode', pre:'Wrong AccessCode', expected:'Parameter error' },
+  { id:'PR-04', mod:'Payment Request', title:'Valid payment amount', pre:'Correct format (×100)', expected:'Redirected to OnePay page', critical:true },
+  { id:'PR-05', mod:'Payment Request', title:'Invalid amount (letters)', pre:'Enter text in amount', expected:'Parameter error' },
+  { id:'PR-06', mod:'Payment Request', title:'vpc_OrderInfo with special chars', pre:'Add ( / & ? )', expected:'Parameter error' },
+  { id:'PR-07', mod:'Payment Request', title:'Duplicate vpc_MerchTxnRef', pre:'Reuse existing ref', expected:'Duplicate transaction error' },
+  { id:'PP-01', mod:'Payment Process', title:'Successful payment', pre:'Valid card + OTP', expected:'vpc_TxnResponseCode = 0', critical:true },
+  { id:'PP-02', mod:'Payment Process', title:'3D Secure failure', pre:'Card fails 3DS', expected:'vpc_TxnResponseCode ≠ 0' },
+  { id:'PP-03', mod:'Payment Process', title:'User cancels', pre:'Payment page shown', expected:'Redirected back to merchant' },
+  { id:'PP-04', mod:'Payment Process', title:'Invoice expired', pre:'Wait for timeout', expected:'vpc_TxnResponseCode = 253' },
+  { id:'IPN-01', mod:'IPN', title:'Receive IPN successfully', pre:'Payment completed', expected:'Order status updated', critical:true },
+  { id:'IPN-02', mod:'IPN', title:'ReturnURL before IPN', pre:'Simulated scenario', expected:'Order updated once' },
+  { id:'IPN-03', mod:'IPN', title:'IPN before ReturnURL', pre:'Simulated scenario', expected:'No duplicate update' },
+  { id:'IPN-04', mod:'IPN', title:'IPN received twice', pre:'IPN sent twice', expected:'No downgrade from success to failed', critical:true },
+  { id:'IPN-05', mod:'IPN', title:'Merchant returns HTTP ≠ 200', pre:'Server returns 500', expected:'Retry triggered by OnePay' },
+  { id:'IPN-06', mod:'IPN', title:'Retry succeeds on 2nd attempt', pre:'1st fails, 2nd ok', expected:'OnePay stops retrying' },
+  { id:'SEC-01', mod:'SecureHash', title:'Valid hash verification', pre:'Normal response', expected:'Transaction accepted', critical:true },
+  { id:'SEC-02', mod:'SecureHash', title:'Tampered hash', pre:'Modify vpc_SecureHash', expected:'Status = Pending, use QueryDR', critical:true },
+  { id:'QDR-01', mod:'QueryDR', title:'Query existing transaction', pre:'Valid MerchTxnRef', expected:'vpc_DRExists = Y' },
+  { id:'QDR-02', mod:'QueryDR', title:'Query non-existing transaction', pre:'Unknown MerchTxnRef', expected:'vpc_DRExists = N' },
+  { id:'QDR-03', mod:'QueryDR', title:'Transaction in progress', pre:'Payment not completed', expected:'Response code 100 or 300' },
+  { id:'QDR-04', mod:'QueryDR', title:'Retry until final status', pre:'Delayed payment', expected:'Final status returned', critical:true },
+  { id:'OC-01', mod:'Other', title:'Back button during payment', pre:'Payment processing', expected:'Order NOT marked failed — await IPN', critical:true },
+  { id:'OC-02', mod:'Other', title:'Double-click Pay button', pre:'Multiple rapid clicks', expected:'Only one transaction created' },
+  { id:'OC-03', mod:'Other', title:'Network drop after OTP', pre:'Normal request', expected:'Await IPN callback' },
+  { id:'OC-04', mod:'Other', title:'Refresh ReturnURL page', pre:'Result page returned', expected:'No duplicate order update' },
+  { id:'OC-05', mod:'Other', title:'Tampered success URL', pre:'Modify response code in URL', expected:'SecureHash invalid → stay Pending', critical:true },
+];
+
+function renderTc() {
+  const pass = ALL_TC.filter(t => TC_STATE[t.id] === 'pass').length;
+  const total = ALL_TC.length;
+  document.getElementById('tc-label').textContent = `${pass} / ${total} passed`;
+  document.getElementById('tc-bar').style.width = Math.round(pass/total*100) + '%';
+
+  let html = '';
+  let lastMod = '';
+  ALL_TC.forEach(tc => {
+    if (tc.mod !== lastMod) {
+      html += `<div style="font-size:11px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:0.06em; margin:${lastMod ? '16px' : '0'} 0 8px; padding-bottom:4px; border-bottom:1px solid var(--border);">${tc.mod}</div>`;
+      lastMod = tc.mod;
+    }
+    const st = TC_STATE[tc.id] || 'pending';
+    html += `<div class="tc-item">
+      <div class="tc-check ${st}" id="chk-${tc.id}">${st==='pass'?'✓':st==='fail'?'✗':''}</div>
+      <div class="tc-id">${tc.id}</div>
+      <div class="tc-body">
+        <div class="tc-title">${tc.title}${tc.critical ? ' <span class="badge badge-red" style="font-size:9px;">critical</span>' : ''}</div>
+        <div class="tc-meta">Pre-condition: ${tc.pre}</div>
+        <div class="tc-expected">${tc.expected}</div>
+        <div class="tc-actions">
+          <button class="btn btn-success btn-sm" onclick="markTc('${tc.id}','pass')">✓ Pass</button>
+          <button class="btn btn-danger btn-sm" onclick="markTc('${tc.id}','fail')">✗ Fail</button>
+          <button class="btn btn-secondary btn-sm" onclick="markTc('${tc.id}','pending')">Reset</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('tc-list').innerHTML = html;
+}
+
+function markTc(id, st) { TC_STATE[id] = st; renderTc(); }
+function resetTc() { ALL_TC.forEach(t => delete TC_STATE[t.id]); renderTc(); }
+renderTc();
+
+// ── Helpers ────────────────────────────────────────────────────────
+function showAlert(id, type, msg) {
+  const el = document.getElementById(id);
+  el.className = 'alert alert-' + type;
+  el.textContent = msg;
+  el.style.display = 'flex';
+}
+
+function copyText(id) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).catch(() => {});
+}
+
+// ── Handle result from ReturnURL redirect ──────────────────────────
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('result')) {
+    try {
+      const r = JSON.parse(decodeURIComponent(params.get('result')));
+      const code = r.vpc_TxnResponseCode;
+      alert(`Payment result received!\nvpc_TxnResponseCode: ${code}\n${code === '0' ? '✅ SUCCESS' : '❌ FAILED (code: ' + code + ')'}\n\nGo to "Verify Hash" tab to validate the SecureHash.`);
+      document.getElementById('v-input').value = JSON.stringify(r, null, 2);
+      window.history.replaceState({}, '', '/');
+    } catch (_) {}
+  }
+})();
+</script>
+</body>
+</html>
